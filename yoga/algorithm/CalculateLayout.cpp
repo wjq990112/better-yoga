@@ -209,15 +209,21 @@ static void computeFlexBasisForChild(
     }
 
     const auto& childStyle = child->style();
-    if (childStyle.aspectRatio().isDefined()) {
+    // aspectRatio() and resolveChildAlignment() are pure reads of read-only
+    // style state, unchanged across this block. Resolve each once instead of
+    // re-fetching through the style value pool / re-deriving the alignment on
+    // every use below.
+    const FloatOptional childAspectRatio = childStyle.aspectRatio();
+    const Align childAlignment = resolveChildAlignment(node, child);
+    if (childAspectRatio.isDefined()) {
       if (!isMainAxisRow && childWidthSizingMode == SizingMode::StretchFit) {
         childHeight = marginColumn +
-            (childWidth - marginRow) / childStyle.aspectRatio().unwrap();
+            (childWidth - marginRow) / childAspectRatio.unwrap();
         childHeightSizingMode = SizingMode::StretchFit;
       } else if (
           isMainAxisRow && childHeightSizingMode == SizingMode::StretchFit) {
         childWidth = marginRow +
-            (childHeight - marginColumn) * childStyle.aspectRatio().unwrap();
+            (childHeight - marginColumn) * childAspectRatio.unwrap();
         childWidthSizingMode = SizingMode::StretchFit;
       }
     }
@@ -227,33 +233,29 @@ static void computeFlexBasisForChild(
 
     const bool hasExactWidth =
         yoga::isDefined(width) && widthMode == SizingMode::StretchFit;
-    const bool childWidthStretch =
-        resolveChildAlignment(node, child) == Align::Stretch &&
+    const bool childWidthStretch = childAlignment == Align::Stretch &&
         childWidthSizingMode != SizingMode::StretchFit;
     if (!isMainAxisRow && !isRowStyleDimDefined && hasExactWidth &&
         childWidthStretch) {
       childWidth = width;
       childWidthSizingMode = SizingMode::StretchFit;
-      if (childStyle.aspectRatio().isDefined()) {
-        childHeight =
-            (childWidth - marginRow) / childStyle.aspectRatio().unwrap();
+      if (childAspectRatio.isDefined()) {
+        childHeight = (childWidth - marginRow) / childAspectRatio.unwrap();
         childHeightSizingMode = SizingMode::StretchFit;
       }
     }
 
     const bool hasExactHeight =
         yoga::isDefined(height) && heightMode == SizingMode::StretchFit;
-    const bool childHeightStretch =
-        resolveChildAlignment(node, child) == Align::Stretch &&
+    const bool childHeightStretch = childAlignment == Align::Stretch &&
         childHeightSizingMode != SizingMode::StretchFit;
     if (isMainAxisRow && !isColumnStyleDimDefined && hasExactHeight &&
         childHeightStretch) {
       childHeight = height;
       childHeightSizingMode = SizingMode::StretchFit;
 
-      if (childStyle.aspectRatio().isDefined()) {
-        childWidth =
-            (childHeight - marginColumn) * childStyle.aspectRatio().unwrap();
+      if (childAspectRatio.isDefined()) {
+        childWidth = (childHeight - marginColumn) * childAspectRatio.unwrap();
         childWidthSizingMode = SizingMode::StretchFit;
       }
     }
@@ -1125,8 +1127,10 @@ static void distributeFreeSpaceFirstPass(
                                .unwrap();
 
     if (flexLine.layout.remainingFreeSpace < 0) {
-      flexShrinkScaledFactor =
-          -currentLineChild->resolveFlexShrink() * childFlexBasis;
+      // resolveFlexShrink() is a pure read of style+config, constant across the
+      // two uses in this branch; resolve it once.
+      const float resolvedFlexShrink = currentLineChild->resolveFlexShrink();
+      flexShrinkScaledFactor = -resolvedFlexShrink * childFlexBasis;
 
       // Is this child able to shrink?
       if (yoga::isDefined(flexShrinkScaledFactor) &&
@@ -1150,7 +1154,7 @@ static void distributeFreeSpaceFirstPass(
           // first and second passes.
           deltaFreeSpace += boundMainSize - childFlexBasis;
           flexLine.layout.totalFlexShrinkScaledFactors -=
-              (-currentLineChild->resolveFlexShrink() *
+              (-resolvedFlexShrink *
                currentLineChild->getLayout().computedFlexBasis.unwrap());
         }
       }
@@ -2565,39 +2569,39 @@ bool calculateLayoutInternal(
     const float marginAxisColumn =
         node->style().computeMarginForAxis(FlexDirection::Column, ownerWidth);
 
+    // The request side of the cache comparison is constant across both the
+    // layout-cache check and the measurement-cache scan, so derive its
+    // pixel-grid-rounded form once and reuse it per entry.
+    const CachedMeasurementRequest cacheRequest = makeCachedMeasurementRequest(
+        widthSizingMode,
+        availableWidth,
+        heightSizingMode,
+        availableHeight,
+        marginAxisRow,
+        marginAxisColumn,
+        node->getConfig());
+
     // First, try to use the layout cache.
-    if (canUseCachedMeasurement(
-            widthSizingMode,
-            availableWidth,
-            heightSizingMode,
-            availableHeight,
+    if (canUseCachedMeasurementForEntry(
+            cacheRequest,
             layout->cachedLayout.widthSizingMode,
             layout->cachedLayout.availableWidth,
             layout->cachedLayout.heightSizingMode,
             layout->cachedLayout.availableHeight,
             layout->cachedLayout.computedWidth,
-            layout->cachedLayout.computedHeight,
-            marginAxisRow,
-            marginAxisColumn,
-            node->getConfig())) {
+            layout->cachedLayout.computedHeight)) {
       cachedResults = &layout->cachedLayout;
     } else {
       // Try to use the measurement cache.
       for (size_t i = 0; i < layout->nextCachedMeasurementsIndex; i++) {
-        if (canUseCachedMeasurement(
-                widthSizingMode,
-                availableWidth,
-                heightSizingMode,
-                availableHeight,
+        if (canUseCachedMeasurementForEntry(
+                cacheRequest,
                 layout->cachedMeasurements[i].widthSizingMode,
                 layout->cachedMeasurements[i].availableWidth,
                 layout->cachedMeasurements[i].heightSizingMode,
                 layout->cachedMeasurements[i].availableHeight,
                 layout->cachedMeasurements[i].computedWidth,
-                layout->cachedMeasurements[i].computedHeight,
-                marginAxisRow,
-                marginAxisColumn,
-                node->getConfig())) {
+                layout->cachedMeasurements[i].computedHeight)) {
           cachedResults = &layout->cachedMeasurements[i];
           break;
         }
