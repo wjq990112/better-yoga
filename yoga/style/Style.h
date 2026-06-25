@@ -163,6 +163,14 @@ class YG_EXPORT Style {
   }
   void setMargin(Edge edge, Style::Length value) {
     pool_.store(margin_[yoga::to_underlying(edge)], value);
+    marginEverSet_ = marginEverSet_ || !value.isUndefined();
+  }
+  // True only means "a defined margin may exist"; false guarantees every margin
+  // edge is undefined. Sticky (never cleared) so it is always safe to use the
+  // false case to skip margin resolution. Lets hot callers resolving all four
+  // edges bail out with a single check on the common margin-free node.
+  bool hasMargin() const {
+    return marginEverSet_;
   }
 
   Style::Length position(Edge edge) const {
@@ -177,6 +185,10 @@ class YG_EXPORT Style {
   }
   void setPadding(Edge edge, Style::Length value) {
     pool_.store(padding_[yoga::to_underlying(edge)], value);
+    paddingEverSet_ = paddingEverSet_ || !value.isUndefined();
+  }
+  bool hasPadding() const {
+    return paddingEverSet_;
   }
 
   Style::Length border(Edge edge) const {
@@ -184,6 +196,10 @@ class YG_EXPORT Style {
   }
   void setBorder(Edge edge, Style::Length value) {
     pool_.store(border_[yoga::to_underlying(edge)], value);
+    borderEverSet_ = borderEverSet_ || !value.isUndefined();
+  }
+  bool hasBorder() const {
+    return borderEverSet_;
   }
 
   Style::Length gap(Gutter gutter) const {
@@ -912,6 +928,13 @@ class YG_EXPORT Style {
   Overflow overflow_ : bitCount<Overflow>() = Overflow::Visible;
   Display display_ : bitCount<Display>() = Display::Flex;
   BoxSizing boxSizing_ : bitCount<BoxSizing>() = BoxSizing::BorderBox;
+
+  // Sticky "a defined value was ever stored" flags for the edge groups (see
+  // hasMargin/hasPadding/hasBorder). Conservative: never auto-cleared, so false
+  // guarantees the whole group is undefined.
+  bool marginEverSet_ : 1 = false;
+  bool paddingEverSet_ : 1 = false;
+  bool borderEverSet_ : 1 = false;
 
   StyleValueHandle flex_{};
   StyleValueHandle flexGrow_{};

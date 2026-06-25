@@ -1580,51 +1580,79 @@ static void calculateLayoutImpl(
   const auto endEdge =
       direction == Direction::LTR ? PhysicalEdge::Right : PhysicalEdge::Left;
 
-  const float marginRowLeading = node->style().computeInlineStartMargin(
-      flexRowDirection, direction, ownerWidth);
-  node->setLayoutMargin(marginRowLeading, startEdge);
-  const float marginRowTrailing = node->style().computeInlineEndMargin(
-      flexRowDirection, direction, ownerWidth);
-  node->setLayoutMargin(marginRowTrailing, endEdge);
-  const float marginColumnLeading = node->style().computeInlineStartMargin(
-      flexColumnDirection, direction, ownerWidth);
-  node->setLayoutMargin(marginColumnLeading, PhysicalEdge::Top);
-  const float marginColumnTrailing = node->style().computeInlineEndMargin(
-      flexColumnDirection, direction, ownerWidth);
-  node->setLayoutMargin(marginColumnTrailing, PhysicalEdge::Bottom);
+  // Margins/borders/paddings all resolve to 0 when the node sets none, which is
+  // the common case for container nodes. The sticky has*() flags let us skip
+  // resolving all four physical edges (and the per-edge priority walk each
+  // entails) with a single check. When a flag is true the original per-edge
+  // resolution runs unchanged, so nodes that do set these pay nothing extra.
+  float marginAxisRow = 0.0f;
+  float marginAxisColumn = 0.0f;
+  if (node->style().hasMargin()) {
+    const float marginRowLeading = node->style().computeInlineStartMargin(
+        flexRowDirection, direction, ownerWidth);
+    node->setLayoutMargin(marginRowLeading, startEdge);
+    const float marginRowTrailing = node->style().computeInlineEndMargin(
+        flexRowDirection, direction, ownerWidth);
+    node->setLayoutMargin(marginRowTrailing, endEdge);
+    const float marginColumnLeading = node->style().computeInlineStartMargin(
+        flexColumnDirection, direction, ownerWidth);
+    node->setLayoutMargin(marginColumnLeading, PhysicalEdge::Top);
+    const float marginColumnTrailing = node->style().computeInlineEndMargin(
+        flexColumnDirection, direction, ownerWidth);
+    node->setLayoutMargin(marginColumnTrailing, PhysicalEdge::Bottom);
 
-  const float marginAxisRow = marginRowLeading + marginRowTrailing;
-  const float marginAxisColumn = marginColumnLeading + marginColumnTrailing;
+    marginAxisRow = marginRowLeading + marginRowTrailing;
+    marginAxisColumn = marginColumnLeading + marginColumnTrailing;
+  } else {
+    node->setLayoutMargin(0.0f, startEdge);
+    node->setLayoutMargin(0.0f, endEdge);
+    node->setLayoutMargin(0.0f, PhysicalEdge::Top);
+    node->setLayoutMargin(0.0f, PhysicalEdge::Bottom);
+  }
 
-  node->setLayoutBorder(
-      node->style().computeInlineStartBorder(flexRowDirection, direction),
-      startEdge);
-  node->setLayoutBorder(
-      node->style().computeInlineEndBorder(flexRowDirection, direction),
-      endEdge);
-  node->setLayoutBorder(
-      node->style().computeInlineStartBorder(flexColumnDirection, direction),
-      PhysicalEdge::Top);
-  node->setLayoutBorder(
-      node->style().computeInlineEndBorder(flexColumnDirection, direction),
-      PhysicalEdge::Bottom);
+  if (node->style().hasBorder()) {
+    node->setLayoutBorder(
+        node->style().computeInlineStartBorder(flexRowDirection, direction),
+        startEdge);
+    node->setLayoutBorder(
+        node->style().computeInlineEndBorder(flexRowDirection, direction),
+        endEdge);
+    node->setLayoutBorder(
+        node->style().computeInlineStartBorder(flexColumnDirection, direction),
+        PhysicalEdge::Top);
+    node->setLayoutBorder(
+        node->style().computeInlineEndBorder(flexColumnDirection, direction),
+        PhysicalEdge::Bottom);
+  } else {
+    node->setLayoutBorder(0.0f, startEdge);
+    node->setLayoutBorder(0.0f, endEdge);
+    node->setLayoutBorder(0.0f, PhysicalEdge::Top);
+    node->setLayoutBorder(0.0f, PhysicalEdge::Bottom);
+  }
 
-  node->setLayoutPadding(
-      node->style().computeInlineStartPadding(
-          flexRowDirection, direction, ownerWidth),
-      startEdge);
-  node->setLayoutPadding(
-      node->style().computeInlineEndPadding(
-          flexRowDirection, direction, ownerWidth),
-      endEdge);
-  node->setLayoutPadding(
-      node->style().computeInlineStartPadding(
-          flexColumnDirection, direction, ownerWidth),
-      PhysicalEdge::Top);
-  node->setLayoutPadding(
-      node->style().computeInlineEndPadding(
-          flexColumnDirection, direction, ownerWidth),
-      PhysicalEdge::Bottom);
+  if (node->style().hasPadding()) {
+    node->setLayoutPadding(
+        node->style().computeInlineStartPadding(
+            flexRowDirection, direction, ownerWidth),
+        startEdge);
+    node->setLayoutPadding(
+        node->style().computeInlineEndPadding(
+            flexRowDirection, direction, ownerWidth),
+        endEdge);
+    node->setLayoutPadding(
+        node->style().computeInlineStartPadding(
+            flexColumnDirection, direction, ownerWidth),
+        PhysicalEdge::Top);
+    node->setLayoutPadding(
+        node->style().computeInlineEndPadding(
+            flexColumnDirection, direction, ownerWidth),
+        PhysicalEdge::Bottom);
+  } else {
+    node->setLayoutPadding(0.0f, startEdge);
+    node->setLayoutPadding(0.0f, endEdge);
+    node->setLayoutPadding(0.0f, PhysicalEdge::Top);
+    node->setLayoutPadding(0.0f, PhysicalEdge::Bottom);
+  }
 
   if (node->hasMeasureFunc()) {
     measureNodeWithMeasureFunc(
