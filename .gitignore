@@ -82,3 +82,6 @@ local.properties
 
 # microbench build outputs
 /tools/microbench/build-*/
+
+# difftest build outputs
+/tools/difftest/build-*/
