@@ -1,0 +1,29 @@
+--- a/src/lib.rs	2006-07-24 09:21:28
++++ b/src/lib.rs	2026-06-26 11:38:52
+@@ -571,7 +571,7 @@
+     }
+ 
+     pub fn get_row_gap(&mut self) -> f32 {
+-        unsafe { internal::YGNodeStyleGetGap(self.inner_node, Gutter::Row) }
++        unsafe { internal::YGNodeStyleGetGap(self.inner_node, Gutter::Row).value }
+     }
+ 
+     pub fn set_column_gap(&mut self, gap: StyleUnit) {
+@@ -579,7 +579,7 @@
+     }
+ 
+     pub fn get_column_gap(&mut self) -> f32 {
+-        unsafe { internal::YGNodeStyleGetGap(self.inner_node, Gutter::Column) }
++        unsafe { internal::YGNodeStyleGetGap(self.inner_node, Gutter::Column).value }
+     }
+ 
+     pub fn set_gap(&mut self, gap_type: Gutter, gap: StyleUnit) {
+@@ -597,7 +597,7 @@
+     }
+ 
+     pub fn get_gap(&mut self, gap_type: Gutter) -> f32 {
+-        unsafe { internal::YGNodeStyleGetGap(self.inner_node, gap_type) }
++        unsafe { internal::YGNodeStyleGetGap(self.inner_node, gap_type).value }
+     }
+ 
+     pub fn get_style_position_left(&self) -> StyleUnit {

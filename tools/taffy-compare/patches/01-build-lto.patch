@@ -1,0 +1,16 @@
+--- a/build.rs	2006-07-24 09:21:28
++++ b/build.rs	2026-06-26 11:36:12
+@@ -65,7 +65,12 @@
+ 		.flag("-fno-omit-frame-pointer")
+ 		.flag("-fexceptions")
+ 		.flag("-Wall")
+-		.flag("-O3")
++		// better-yoga's shipped build config: -O2 + ThinLTO (see
++		// cmake/project-defaults.cmake). LTO is the actual perf lever here — it
++		// lets the linker inline the per-node style accessors across TU
++		// boundaries into CalculateLayout.cpp. -O3 alone was measured as noise.
++		.flag("-O2")
++		.flag("-flto=thin")
+ 		.flag("-fPIC")
+ 		// Include path
+ 		.include("src/yoga")
