@@ -207,6 +207,37 @@ YGNodeRef buildAbsolute(YGConfigRef config, int items) {
   return root;
 }
 
+// Super-deep auto-size chain mirroring Taffy's super_deep benchmark: a `depth`
+// chain of containers, each holding the previous level's node plus two leaves.
+// Every node is Row + flexGrow:1 + margin:10, sized auto. This is the workload
+// where Yoga collapses exponentially (27.9s for depth 100) and Taffy wins ~10x.
+YGNodeRef buildSuperDeep(YGConfigRef config, int depth, int nodesPerLevel) {
+  // Build bottom-up: children starts empty, each level wraps it in a container
+  // and adds (nodesPerLevel - 1) leaves.
+  std::vector<YGNodeRef> children;
+  for (int d = 0; d < depth; d++) {
+    YGNodeRef container = YGNodeNewWithConfig(config);
+    YGNodeStyleSetFlexDirection(container, YGFlexDirectionRow);
+    YGNodeStyleSetFlexGrow(container, 1.0f);
+    YGNodeStyleSetMargin(container, YGEdgeAll, 10.0f);
+    for (size_t i = 0; i < children.size(); i++) {
+      YGNodeInsertChild(container, children[i], i);
+    }
+    children.clear();
+    children.push_back(container);
+    for (int i = 1; i < nodesPerLevel; i++) {
+      YGNodeRef leaf = YGNodeNewWithConfig(config);
+      YGNodeStyleSetFlexDirection(leaf, YGFlexDirectionRow);
+      YGNodeStyleSetFlexGrow(leaf, 1.0f);
+      YGNodeStyleSetMargin(leaf, YGEdgeAll, 10.0f);
+      children.push_back(leaf);
+    }
+  }
+  // The last "children" holds the outermost level; promote its first node as root.
+  YGNodeRef root = children[0];
+  return root;
+}
+
 std::vector<Workload> buildWorkloads() {
   std::vector<Workload> workloads;
 
@@ -254,6 +285,12 @@ std::vector<Workload> buildWorkloads() {
   {
     YGConfigRef c = makeConfig();
     add("rtl-deep", buildFlexTree(c, 6, 3, true), 1024, 768, YGDirectionRTL);
+  }
+  {
+    // The workload where Yoga collapses exponentially vs Taffy. Auto-size
+    // (undefined available dims) + deep flexGrow chain.
+    YGConfigRef c = makeConfig();
+    add("super-deep-50", buildSuperDeep(c, 50, 3), YGUndefined, YGUndefined, YGDirectionLTR);
   }
 
   return workloads;
@@ -337,8 +374,15 @@ int main(int argc, char* argv[]) {
 
   auto workloads = buildWorkloads();
 
+  // Optional argv[3]: only run workloads whose name contains the given filter
+  // (for profiling a single workload over a long budget).
+  std::string filter = (argc >= 4) ? argv[3] : "";
+
   printf("%-22s %14s %14s\n", "workload", "cold(us)", "relayout(us)");
   for (auto& wl : workloads) {
+    if (!filter.empty() && wl.name.find(filter) == std::string::npos) {
+      continue;
+    }
     int64_t cold = timeColdLayout(wl, maxIters, budgetNs);
     int64_t relayout = timeRelayout(wl, std::min(maxIters, 5000), budgetNs);
     printf(

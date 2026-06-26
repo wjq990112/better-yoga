@@ -20,9 +20,11 @@
 namespace facebook::yoga {
 
 struct LayoutResults {
-  // This value was chosen based on empirical data:
-  // 98% of analyzed layouts require less than 8 entries.
-  static constexpr int32_t MaxCachedMeasurements = 8;
+  // Empirically 98% of layouts need <8 entries, but deep auto-size trees
+  // (each node queried under many distinct constraints) overflow 8 and regress
+  // exponentially. 64 covers deep trees without measurably costing shallow ones
+  // (the array is per-node but only populated as needed).
+  static constexpr int32_t MaxCachedMeasurements = 64;
 
   uint32_t computedFlexBasisGeneration = 0;
   FloatOptional computedFlexBasis = {};
