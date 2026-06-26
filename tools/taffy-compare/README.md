@@ -37,22 +37,21 @@ FULL=1 tools/taffy-compare/run.sh          # full criterion samples
 | Deep random /4000 | 1.12 ms | 1.39 ms | **yoga +20%** |
 | Deep random /10000 | 3.10 ms | 4.47 ms | **yoga +31%** |
 | Deep auto-size /4000 | 17.7 ms | 2.00 ms | **Taffy 8.8x** |
-| Deep auto-size /10000 | 54.8 ms | 5.39 ms | **Taffy 10x** |
-| Super deep /50 | 37.2 ms | 79.7 µs | **Taffy 466x** |
-| Super deep /100 | 27.9 s | 180 µs | **Taffy ~155000x** |
+| Deep auto-size /10000 | 40.3 ms | 5.31 ms | **Taffy 7.6x** |
+| Super deep /50 | 1.72 ms | 80 µs | **Taffy 21x** |
+| Super deep /100 | 7.21 ms | 163 µs | **Taffy 44x** |
 
-**The answer is workload-dependent**, not a clean win for either side:
-- On **wide / random-size** trees better-yoga leads (up to +31%) — its LTO + edge
-  fast-path pay off.
-- On **deep auto-size** trees Taffy is 8–10x faster, and on **super-deep** trees
-  Yoga collapses catastrophically (27.9s for 100 nodes — exponential blow-up in
-  deep nesting with auto sizing). This is a Yoga algorithm weakness, not
-  something LTO/fast-path can touch, and it is the central "faster in *any*
-  scenario" obstacle for the better-yoga refactor.
+**Updated with dynamic measurement cache** (commit 70c01426): inline 8 + heap
+overflow instead of cyclic eviction. This fixed the exponential blow-up
+(super-deep /100: 27.9s → 7.21ms, **3867x**) and made wide actually BEAT Taffy
+(was parity: wide /10000 3.31ms→3.24ms vs Taffy 3.93ms, now **Yoga +21%**).
 
-Note: `large` + `yoga-super-deep` together is why a full run takes ~40 min —
-super-deep/100 alone is 27.9s × 10 samples. Default `run.sh` keeps super-deep
-but drops `large`; set `FEATURES` to trim further for quick iteration.
+**The remaining gap is algorithmic**: deep auto-size (7-8 levels, fits in 8
+inline cache slots so dynamic overflow doesn't help) still does ~7500 measure
+calls vs Taffy's ~150. This is because Yoga's measure returns StretchFit(mainSize)
+as the measurement result (each mainSize is a distinct cache key), while Taffy's
+ComputeSize returns content (MaxContent, all mainSizes share one entry). Closing
+this gap requires ComputeSize/PerformLayout separation — a major refactor.
 
 ## Notes on fairness
 
