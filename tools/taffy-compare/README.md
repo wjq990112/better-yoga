@@ -28,21 +28,31 @@ tools/taffy-compare/run.sh                 # quick (~2 min)
 FULL=1 tools/taffy-compare/run.sh          # full criterion samples
 ```
 
-## Initial findings (quick mode, better-yoga LTO+fast-path vs Taffy 0.7)
+## Results (quick mode, better-yoga LTO+fast-path vs Taffy 0.7)
 
-| scenario | better-yoga | Taffy 0.7 | winner |
+| scenario | better-yoga | Taffy 0.7 | verdict |
 |---|---|---|---|
-| Wide tree /10000 | 3.11 ms | 3.78 ms | **yoga +18%** |
-| Deep random /10000 | 2.97 ms | 4.32 ms | **yoga +31%** |
-| Deep random /4000 | 1.11 ms | 1.43 ms | **yoga +22%** |
-| Deep **auto-size** /10000 | 55.85 ms | 5.59 ms | **Taffy ~10x** |
-| Deep **auto-size** /4000 | 17.14 ms | 2.03 ms | **Taffy ~8.4x** |
+| Huge nested /10000 | 2.12 ms | 2.07 ms | ~parity |
+| Wide tree /10000 | 3.31 ms | 3.38 ms | ~parity |
+| Deep random /4000 | 1.12 ms | 1.39 ms | **yoga +20%** |
+| Deep random /10000 | 3.10 ms | 4.47 ms | **yoga +31%** |
+| Deep auto-size /4000 | 17.7 ms | 2.00 ms | **Taffy 8.8x** |
+| Deep auto-size /10000 | 54.8 ms | 5.39 ms | **Taffy 10x** |
+| Super deep /50 | 37.2 ms | 79.7 µs | **Taffy 466x** |
+| Super deep /100 | 27.9 s | 180 µs | **Taffy ~155000x** |
 
 **The answer is workload-dependent**, not a clean win for either side:
-better-yoga leads on wide/random trees, but Taffy crushes Yoga ~10x on deep
-auto-size trees — a known Yoga algorithm weakness (deep nesting + auto sizing
-triggers heavy redundant measurement). That gap is the next target for the
-better-yoga refactor; it's exactly the "faster in *any* scenario" blind spot.
+- On **wide / random-size** trees better-yoga leads (up to +31%) — its LTO + edge
+  fast-path pay off.
+- On **deep auto-size** trees Taffy is 8–10x faster, and on **super-deep** trees
+  Yoga collapses catastrophically (27.9s for 100 nodes — exponential blow-up in
+  deep nesting with auto sizing). This is a Yoga algorithm weakness, not
+  something LTO/fast-path can touch, and it is the central "faster in *any*
+  scenario" obstacle for the better-yoga refactor.
+
+Note: `large` + `yoga-super-deep` together is why a full run takes ~40 min —
+super-deep/100 alone is 27.9s × 10 samples. Default `run.sh` keeps super-deep
+but drops `large`; set `FEATURES` to trim further for quick iteration.
 
 ## Notes on fairness
 
