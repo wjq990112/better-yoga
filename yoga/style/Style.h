@@ -885,6 +885,9 @@ class YG_EXPORT Style {
 
   StyleValueHandle computePadding(PhysicalEdge edge, Direction direction)
       const {
+    if (!paddingEverSet_) {
+      return {};
+    }
     switch (edge) {
       case PhysicalEdge::Left:
         return computeLeftEdge(padding_, direction);
