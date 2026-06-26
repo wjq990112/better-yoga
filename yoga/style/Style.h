@@ -163,7 +163,12 @@ class YG_EXPORT Style {
   }
   void setMargin(Edge edge, Style::Length value) {
     pool_.store(margin_[yoga::to_underlying(edge)], value);
-    marginEverSet_ = marginEverSet_ || !value.isUndefined();
+    // Point(0) is layout-equivalent to undefined (both resolve to 0), so treat
+    // it as unset — lets the fast-path fire for the common margin:0 case (e.g.
+    // Taffy's binding sets margin to Length(0) for every node).
+    marginEverSet_ = marginEverSet_ ||
+        (!value.isUndefined() &&
+         !(value.isPoints() && value.value().unwrap() == 0.0f));
     hasPercentageDims_ = hasPercentageDims_ || value.isPercent();
   }
   // True only means "a defined margin may exist"; false guarantees every margin
@@ -186,7 +191,9 @@ class YG_EXPORT Style {
   }
   void setPadding(Edge edge, Style::Length value) {
     pool_.store(padding_[yoga::to_underlying(edge)], value);
-    paddingEverSet_ = paddingEverSet_ || !value.isUndefined();
+    paddingEverSet_ = paddingEverSet_ ||
+        (!value.isUndefined() &&
+         !(value.isPoints() && value.value().unwrap() == 0.0f));
     hasPercentageDims_ = hasPercentageDims_ || value.isPercent();
   }
   bool hasPadding() const {
@@ -203,7 +210,9 @@ class YG_EXPORT Style {
   }
   void setBorder(Edge edge, Style::Length value) {
     pool_.store(border_[yoga::to_underlying(edge)], value);
-    borderEverSet_ = borderEverSet_ || !value.isUndefined();
+    borderEverSet_ = borderEverSet_ ||
+        (!value.isUndefined() &&
+         !(value.isPoints() && value.value().unwrap() == 0.0f));
   }
   bool hasBorder() const {
     return borderEverSet_;
