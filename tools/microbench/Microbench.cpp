@@ -28,6 +28,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <functional>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -65,6 +66,13 @@ YGConfigRef makeConfig() {
   YGConfigRef config = YGConfigNew();
   YGConfigSetPointScaleFactor(config, 2.0f);
   return config;
+}
+
+// Default config (pointScaleFactor=0) — mirrors yoga-rs's Node::new(). Pixel-grid
+// rounding is OFF, so cache keys compare exactly: distinct mainSizes per depth
+// level never collapse, which can blow up deep auto-size trees.
+YGConfigRef makeConfigDefault() {
+  return YGConfigNew();
 }
 
 // Collect leaf nodes (no children) for relayout dirtying.
@@ -164,6 +172,34 @@ YGNodeRef buildWide(YGConfigRef config, int items) {
   return root;
 }
 
+// Taffy "huge nested" shape: a deep hierarchy of fixed-size (10pt) flex-grow:1
+// nodes with a fixed branching factor, laid out under a definite viewport.
+// Mirrors taffy-compare's huge_nested benchmark (build_deep_hierarchy).
+YGNodeRef buildHugeNested(YGConfigRef config, uint32_t nodeCount, uint32_t branching) {
+  std::function<YGNodeRef(uint32_t)> build = [&](uint32_t n) -> YGNodeRef {
+    YGNodeRef node = YGNodeNewWithConfig(config);
+    YGNodeStyleSetWidth(node, 10.0f);
+    YGNodeStyleSetHeight(node, 10.0f);
+    YGNodeStyleSetFlexGrow(node, 1.0f);
+    if (n <= branching) {
+      for (uint32_t i = 0; i < n; i++) {
+        YGNodeRef leaf = YGNodeNewWithConfig(config);
+        YGNodeStyleSetWidth(leaf, 10.0f);
+        YGNodeStyleSetHeight(leaf, 10.0f);
+        YGNodeStyleSetFlexGrow(leaf, 1.0f);
+        YGNodeInsertChild(node, leaf, i);
+      }
+      return node;
+    }
+    uint32_t childNodes = (n - branching) / branching;
+    for (uint32_t i = 0; i < branching; i++) {
+      YGNodeInsertChild(node, build(childNodes), i);
+    }
+    return node;
+  };
+  return build(nodeCount);
+}
+
 // Percentage-sized nested containers with min/max constraints.
 YGNodeRef buildPercentMinMax(YGConfigRef config, int depth) {
   YGNodeRef node = YGNodeNewWithConfig(config);
@@ -255,6 +291,68 @@ YGNodeRef buildSuperDeep(YGConfigRef config, int depth, int nodesPerLevel) {
   return root;
 }
 
+// Apply the same style fields taffy-compare's yoga binding sets on every node
+// (apply_taffy_style, using Taffy's defaults) — to isolate which field triggers
+// the 78x slowdown seen in taffy-compare vs the bare buildSuperDeep path.
+void applyTaffyIshStyle(YGNodeRef node) {
+  // Precisely mirrors apply_taffy_style over Taffy's Style::DEFAULT, which is
+  // what taffy-compare feeds every node. Key vs bare Yoga defaults: min/max
+  // stay AUTO (undefined), padding/border are explicitly Length(0) (sets the
+  // ever-set sticky bits), align_items is Auto (not Yoga's default Stretch).
+  YGNodeStyleSetDisplay(node, YGDisplayFlex);
+  YGNodeStyleSetBoxSizing(node, YGBoxSizingBorderBox);
+  YGNodeStyleSetPositionType(node, YGPositionTypeRelative);
+  YGNodeStyleSetPositionAuto(node, YGEdgeLeft);
+  YGNodeStyleSetPositionAuto(node, YGEdgeRight);
+  YGNodeStyleSetPositionAuto(node, YGEdgeTop);
+  YGNodeStyleSetPositionAuto(node, YGEdgeBottom);
+  YGNodeStyleSetWidthAuto(node);
+  YGNodeStyleSetHeightAuto(node);
+  // min/max stay AUTO (undefined) — do NOT set them.
+  YGNodeStyleSetPadding(node, YGEdgeLeft, 0.0f);
+  YGNodeStyleSetPadding(node, YGEdgeRight, 0.0f);
+  YGNodeStyleSetPadding(node, YGEdgeTop, 0.0f);
+  YGNodeStyleSetPadding(node, YGEdgeBottom, 0.0f);
+  YGNodeStyleSetBorder(node, YGEdgeLeft, 0.0f);
+  YGNodeStyleSetBorder(node, YGEdgeRight, 0.0f);
+  YGNodeStyleSetBorder(node, YGEdgeTop, 0.0f);
+  YGNodeStyleSetBorder(node, YGEdgeBottom, 0.0f);
+  YGNodeStyleSetAlignItems(node, YGAlignAuto);
+  YGNodeStyleSetAlignSelf(node, YGAlignAuto);
+  YGNodeStyleSetAlignContent(node, YGAlignFlexStart);
+  YGNodeStyleSetJustifyContent(node, YGJustifyFlexStart);
+  YGNodeStyleSetGap(node, YGGutterAll, 0.0f);
+  YGNodeStyleSetFlexWrap(node, YGWrapNoWrap);
+  YGNodeStyleSetFlexBasisAuto(node);
+  YGNodeStyleSetFlexShrink(node, 1.0f);
+}
+
+YGNodeRef buildSuperDeepStyled(YGConfigRef config, int depth, int nodesPerLevel) {
+  std::vector<YGNodeRef> children;
+  for (int d = 0; d < depth; d++) {
+    YGNodeRef container = YGNodeNewWithConfig(config);
+    YGNodeStyleSetFlexDirection(container, YGFlexDirectionRow);
+    YGNodeStyleSetFlexGrow(container, 1.0f);
+    YGNodeStyleSetMargin(container, YGEdgeAll, 10.0f);
+    applyTaffyIshStyle(container);
+    for (size_t i = 0; i < children.size(); i++) {
+      YGNodeInsertChild(container, children[i], i);
+    }
+    children.clear();
+    children.push_back(container);
+    for (int i = 1; i < nodesPerLevel; i++) {
+      YGNodeRef leaf = YGNodeNewWithConfig(config);
+      YGNodeStyleSetFlexDirection(leaf, YGFlexDirectionRow);
+      YGNodeStyleSetFlexGrow(leaf, 1.0f);
+      YGNodeStyleSetMargin(leaf, YGEdgeAll, 10.0f);
+      applyTaffyIshStyle(leaf);
+      children.push_back(leaf);
+    }
+  }
+  YGNodeRef root = children[0];
+  return root;
+}
+
 std::vector<Workload> buildWorkloads() {
   std::vector<Workload> workloads;
 
@@ -310,9 +408,58 @@ std::vector<Workload> buildWorkloads() {
     add("super-deep-50", buildSuperDeep(c, 50, 3), YGUndefined, YGUndefined, YGDirectionLTR);
   }
   {
+    // Taffy's yoga binding passes None -> f32::INFINITY (not YGUndefined) to
+    // Yoga's C API. Yoga treats INFINITY as a *definite* size (isDefined==true),
+    // routing through StretchFit(INFINITY) rather than MaxContent — a different
+    // cache regime. This isolates that path (mirrors taffy-compare).
+    YGConfigRef c = makeConfig();
+    add("super-deep-50-inf", buildSuperDeep(c, 50, 3),
+        std::numeric_limits<float>::infinity(),
+        std::numeric_limits<float>::infinity(), YGDirectionLTR);
+  }
+  {
+    YGConfigRef c = makeConfig();
+    add("super-deep-100", buildSuperDeep(c, 100, 3), YGUndefined, YGUndefined, YGDirectionLTR);
+  }
+  {
+    // Full taffy-binding style on every node + INFINITY available size, to
+    // reproduce the taffy-compare super-deep blow-up and isolate the trigger.
+    YGConfigRef c = makeConfig();
+    add("super-deep-50-styled", buildSuperDeepStyled(c, 50, 3),
+        std::numeric_limits<float>::infinity(),
+        std::numeric_limits<float>::infinity(), YGDirectionLTR);
+  }
+  {
+    // Default config (pointScaleFactor=0) + INFINITY + bare style: tests whether
+    // the absence of pixel-grid rounding (yoga-rs's default) is the blow-up trigger.
+    YGConfigRef c = makeConfigDefault();
+    add("super-deep-50-inf-ps0", buildSuperDeep(c, 50, 3),
+        std::numeric_limits<float>::infinity(),
+        std::numeric_limits<float>::infinity(), YGDirectionLTR);
+  }
+  {
+    // Default config + INFINITY + full taffy style: the exact taffy-compare combo.
+    YGConfigRef c = makeConfigDefault();
+    add("super-deep-50-taffy", buildSuperDeepStyled(c, 50, 3),
+        std::numeric_limits<float>::infinity(),
+        std::numeric_limits<float>::infinity(), YGDirectionLTR);
+  }
+  {
     // Wide shallow tree: the workload cache=64 was suspected of regressing.
     YGConfigRef c = makeConfig();
     add("wide-2000", buildWide(c, 2000), 1024, YGUndefined, YGDirectionLTR);
+  }
+  {
+    // Taffy "huge nested": 10000 fixed-size flex-grow nodes, branching 10,
+    // definite viewport. better-yoga vs Taffy is ~parity here (2.21ms vs 2.14ms).
+    YGConfigRef c = makeConfig();
+    add("huge-nested-10k", buildHugeNested(c, 10000, 10), 1024, 768, YGDirectionLTR);
+  }
+  {
+    // Same huge-nested shape but default config (pointScaleFactor=0), matching
+    // taffy-compare's yoga binding — isolates pixel-grid rounding's effect.
+    YGConfigRef c = makeConfigDefault();
+    add("huge-nested-10k-ps0", buildHugeNested(c, 10000, 10), 1024, 768, YGDirectionLTR);
   }
 
   return workloads;

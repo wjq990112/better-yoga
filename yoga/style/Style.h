@@ -630,11 +630,22 @@ class YG_EXPORT Style {
   }
 
   float computeBorderForAxis(FlexDirection axis) const {
+    // Fast path: if no border was ever set, all borders are undefined and
+    // resolve to 0 — skip the per-edge compute + resolve. computeBorderForAxis
+    // is called per node during flex resolve.
+    if (!borderEverSet_) {
+      return 0.0f;
+    }
     return computeInlineStartBorder(axis, Direction::LTR) +
         computeInlineEndBorder(axis, Direction::LTR);
   }
 
   float computeMarginForAxis(FlexDirection axis, float widthSize) const {
+    // Fast path: if no margin was ever set, all margins resolve to 0 — skip the
+    // per-edge compute + resolve. Common case (most nodes set no margin).
+    if (!marginEverSet_) {
+      return 0.0f;
+    }
     // The total margin for a given axis does not depend on the direction
     // so hardcoding LTR here to avoid piping direction to this function
     return computeInlineStartMargin(axis, Direction::LTR, widthSize) +
