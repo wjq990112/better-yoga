@@ -1075,23 +1075,31 @@ static float distributeFreeSpaceSecondPass(
         !isMainAxisRow ? childMainSizingMode : childCrossSizingMode;
 
     const bool isLayoutPass = performLayout && !requiresStretchLayout;
-    // Recursively call the layout algorithm for this child with the updated
-    // main size.
-    calculateLayoutInternal(
-        currentLineChild,
-        childWidth,
-        childHeight,
-        node->getLayout().direction(),
-        childWidthSizingMode,
-        childHeightSizingMode,
-        availableInnerWidth,
-        availableInnerHeight,
-        isLayoutPass,
-        isLayoutPass ? LayoutPassReason::kFlexLayout
-                     : LayoutPassReason::kFlexMeasure,
-        layoutMarkerData,
-        depth,
-        generationCount);
+    if (!performLayout &&
+        currentLineChild->getLayout().subtreeCrossPure() &&
+        childCrossSizingMode == SizingMode::MaxContent) {
+      // Cross-pure + MaxContent cross: the child's cross content is independent
+      // of its main size — already computed in the flex-basis pass. Just set the
+      // flex-resolved main size; skip the recursive re-measurement.
+      currentLineChild->setLayoutMeasuredDimension(
+          childWidth, Dimension::Width);
+    } else {
+      calculateLayoutInternal(
+          currentLineChild,
+          childWidth,
+          childHeight,
+          node->getLayout().direction(),
+          childWidthSizingMode,
+          childHeightSizingMode,
+          availableInnerWidth,
+          availableInnerHeight,
+          isLayoutPass,
+          isLayoutPass ? LayoutPassReason::kFlexLayout
+                       : LayoutPassReason::kFlexMeasure,
+          layoutMarkerData,
+          depth,
+          generationCount);
+    }
     node->setLayoutHadOverflow(
         node->getLayout().hadOverflow() ||
         currentLineChild->getLayout().hadOverflow());
@@ -1673,6 +1681,18 @@ static void calculateLayoutImpl(
     return;
   }
 
+  // Set subtreeCrossPure from own style (covers leaves + early returns below).
+  // O(1): sticky hasPercentageDims() replaces 18 isPercent() edge checks.
+  {
+    const auto& s = node->style();
+    node->getLayout().setSubtreeCrossPure(
+        !s.aspectRatio().isDefined() &&
+        s.flexWrap() == Wrap::NoWrap &&
+        s.positionType() == PositionType::Relative &&
+        !s.hasPercentageDims() &&
+        node->getConfig()->getErrata() == Errata::None);
+  }
+
   const auto childCount = node->getLayoutChildCount();
   if (childCount == 0) {
     measureNodeWithoutChildren(
@@ -1843,6 +1863,18 @@ static void calculateLayoutImpl(
       sizingModeMainDim == SizingMode::FitContent) {
     sizingModeMainDim = SizingMode::StretchFit;
   }
+
+  // Update subtreeCrossPure: AND with children's flags. Children were just
+  // measured by computeFlexBasisForChildren above.
+  if (node->getLayout().subtreeCrossPure()) {
+    for (auto* child : node->getLayoutChildren()) {
+      if (!child->getLayout().subtreeCrossPure()) {
+        node->getLayout().setSubtreeCrossPure(false);
+        break;
+      }
+    }
+  }
+
   // STEP 4: COLLECT FLEX ITEMS INTO FLEX LINES
 
   // Iterator representing the beginning of the current line

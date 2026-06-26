@@ -164,6 +164,7 @@ class YG_EXPORT Style {
   void setMargin(Edge edge, Style::Length value) {
     pool_.store(margin_[yoga::to_underlying(edge)], value);
     marginEverSet_ = marginEverSet_ || !value.isUndefined();
+    hasPercentageDims_ = hasPercentageDims_ || value.isPercent();
   }
   // True only means "a defined margin may exist"; false guarantees every margin
   // edge is undefined. Sticky (never cleared) so it is always safe to use the
@@ -186,9 +187,15 @@ class YG_EXPORT Style {
   void setPadding(Edge edge, Style::Length value) {
     pool_.store(padding_[yoga::to_underlying(edge)], value);
     paddingEverSet_ = paddingEverSet_ || !value.isUndefined();
+    hasPercentageDims_ = hasPercentageDims_ || value.isPercent();
   }
   bool hasPadding() const {
     return paddingEverSet_;
+  }
+  // True if any percentage value was ever stored (dimension, padding, margin,
+  // min/max). Sticky. O(1) check for subtreeCrossPure.
+  bool hasPercentageDims() const {
+    return hasPercentageDims_;
   }
 
   Style::Length border(Edge edge) const {
@@ -214,6 +221,7 @@ class YG_EXPORT Style {
   }
   void setDimension(Dimension axis, Style::SizeLength value) {
     pool_.store(dimensions_[yoga::to_underlying(axis)], value);
+    hasPercentageDims_ = hasPercentageDims_ || value.isPercent();
   }
 
   Style::SizeLength minDimension(Dimension axis) const {
@@ -221,6 +229,7 @@ class YG_EXPORT Style {
   }
   void setMinDimension(Dimension axis, Style::SizeLength value) {
     pool_.store(minDimensions_[yoga::to_underlying(axis)], value);
+    hasPercentageDims_ = hasPercentageDims_ || value.isPercent();
   }
 
   // Grid Container Properties
@@ -332,6 +341,7 @@ class YG_EXPORT Style {
   }
   void setMaxDimension(Dimension axis, Style::SizeLength value) {
     pool_.store(maxDimensions_[yoga::to_underlying(axis)], value);
+    hasPercentageDims_ = hasPercentageDims_ || value.isPercent();
   }
 
   FloatOptional resolvedMaxDimension(
@@ -935,6 +945,9 @@ class YG_EXPORT Style {
   bool marginEverSet_ : 1 = false;
   bool paddingEverSet_ : 1 = false;
   bool borderEverSet_ : 1 = false;
+  // Sticky: true if ANY percentage value was ever stored (dimensions, padding,
+  // margin, min/max). Lets subtreeCrossPure check O(1) instead of 18 isPercent.
+  bool hasPercentageDims_ : 1 = false;
 
   StyleValueHandle flex_{};
   StyleValueHandle flexGrow_{};

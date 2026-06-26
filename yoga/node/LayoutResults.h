@@ -98,6 +98,9 @@ struct LayoutResults {
     hadOverflow_ = hadOverflow;
   }
 
+  bool subtreeCrossPure() const { return subtreeCrossPure_; }
+  void setSubtreeCrossPure(bool p) { subtreeCrossPure_ = p; }
+
   float dimension(Dimension axis) const {
     return dimensions_[yoga::to_underlying(axis)];
   }
@@ -159,6 +162,7 @@ struct LayoutResults {
  private:
   Direction direction_ : bitCount<Direction>() = Direction::Inherit;
   bool hadOverflow_ : 1 = false;
+  bool subtreeCrossPure_ : 1 = false;
 
   std::array<float, 2> dimensions_ = {{YGUndefined, YGUndefined}};
   std::array<float, 2> measuredDimensions_ = {{YGUndefined, YGUndefined}};
