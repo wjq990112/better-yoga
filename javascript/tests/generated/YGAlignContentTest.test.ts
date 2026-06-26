@@ -9,7 +9,7 @@
  */
 
 import { intrinsicSizeMeasureFunc } from '../tools/utils.ts'
-import Yoga from 'yoga-layout';
+import Yoga from 'better-yoga-layout';
 import {
   Align,
   BoxSizing,
@@ -26,7 +26,7 @@ import {
   PositionType,
   Unit,
   Wrap,
-} from 'yoga-layout';
+} from 'better-yoga-layout';
 
 test('align_content_flex_start_nowrap', () => {
   const config = Yoga.Config.create();

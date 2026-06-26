@@ -9,7 +9,7 @@
  */
 
 import { intrinsicSizeMeasureFunc } from '../tools/utils.ts'
-import Yoga from 'yoga-layout';
+import Yoga from 'better-yoga-layout';
 import {
   Align,
   BoxSizing,
@@ -26,7 +26,7 @@ import {
   PositionType,
   Unit,
   Wrap,
-} from 'yoga-layout';
+} from 'better-yoga-layout';
 
 test.skip('aspect_ratio_does_not_stretch_cross_axis_dim', () => {
   const config = Yoga.Config.create();
