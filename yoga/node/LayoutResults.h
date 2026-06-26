@@ -8,6 +8,8 @@
 #pragma once
 
 #include <array>
+#include <memory>
+#include <vector>
 
 #include <yoga/debug/AssertFatal.h>
 #include <yoga/enums/Dimension.h>
@@ -43,6 +45,40 @@ struct LayoutResults {
 
   uint32_t nextCachedMeasurementsIndex = 0;
   std::array<CachedMeasurement, MaxCachedMeasurements> cachedMeasurements = {};
+  // Heap-allocated overflow for measurement cache entries beyond the inline 8.
+  // Empty for the vast majority of nodes (wide/shallow trees never exceed 8);
+  // deep auto-size trees overflow and grow this dynamically instead of evicting
+  // (eviction causes cache misses that re-measure subtrees exponentially).
+  // A std::vector (not unique_ptr) so LayoutResults stays copyable for cloning.
+  std::vector<CachedMeasurement> cachedMeasurementsOverflow{};
+
+  // Access a cached measurement entry by index (inline if <8, overflow if >=8).
+  CachedMeasurement& cachedMeasurementRef(size_t i) {
+    if (i < static_cast<size_t>(MaxCachedMeasurements)) {
+      return cachedMeasurements[i];
+    }
+    return cachedMeasurementsOverflow[i - MaxCachedMeasurements];
+  }
+  const CachedMeasurement& cachedMeasurementRef(size_t i) const {
+    if (i < static_cast<size_t>(MaxCachedMeasurements)) {
+      return cachedMeasurements[i];
+    }
+    return cachedMeasurementsOverflow[i - MaxCachedMeasurements];
+  }
+  // Get a writable slot for storing a new entry (grows overflow if needed).
+  CachedMeasurement& cachedMeasurementSlot(size_t i) {
+    if (i < static_cast<size_t>(MaxCachedMeasurements)) {
+      return cachedMeasurements[i];
+    }
+    size_t idx = i - MaxCachedMeasurements;
+    while (cachedMeasurementsOverflow.size() <= idx) {
+      cachedMeasurementsOverflow.push_back(CachedMeasurement{});
+    }
+    return cachedMeasurementsOverflow[idx];
+  }
+  void clearCachedMeasurementsOverflow() {
+    cachedMeasurementsOverflow.clear();
+  }
 
   CachedMeasurement cachedLayout{};
 
@@ -61,6 +97,9 @@ struct LayoutResults {
   void setHadOverflow(bool hadOverflow) {
     hadOverflow_ = hadOverflow;
   }
+
+  bool subtreeCrossPure() const { return subtreeCrossPure_; }
+  void setSubtreeCrossPure(bool p) { subtreeCrossPure_ = p; }
 
   float dimension(Dimension axis) const {
     return dimensions_[yoga::to_underlying(axis)];
@@ -123,6 +162,7 @@ struct LayoutResults {
  private:
   Direction direction_ : bitCount<Direction>() = Direction::Inherit;
   bool hadOverflow_ : 1 = false;
+  bool subtreeCrossPure_ : 1 = false;
 
   std::array<float, 2> dimensions_ = {{YGUndefined, YGUndefined}};
   std::array<float, 2> measuredDimensions_ = {{YGUndefined, YGUndefined}};

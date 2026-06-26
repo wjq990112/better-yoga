@@ -76,3 +76,12 @@ local.properties
 
 # Android Studio
 .idea
+
+# better-yoga A/B tooling
+/.baseline/
+
+# microbench build outputs
+/tools/microbench/build-*/
+
+# difftest build outputs
+/tools/difftest/build-*/

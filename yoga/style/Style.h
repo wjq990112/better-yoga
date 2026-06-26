@@ -163,6 +163,20 @@ class YG_EXPORT Style {
   }
   void setMargin(Edge edge, Style::Length value) {
     pool_.store(margin_[yoga::to_underlying(edge)], value);
+    // Point(0) is layout-equivalent to undefined (both resolve to 0), so treat
+    // it as unset — lets the fast-path fire for the common margin:0 case (e.g.
+    // Taffy's binding sets margin to Length(0) for every node).
+    marginEverSet_ = marginEverSet_ ||
+        (!value.isUndefined() &&
+         !(value.isPoints() && value.value().unwrap() == 0.0f));
+    hasPercentageDims_ = hasPercentageDims_ || value.isPercent();
+  }
+  // True only means "a defined margin may exist"; false guarantees every margin
+  // edge is undefined. Sticky (never cleared) so it is always safe to use the
+  // false case to skip margin resolution. Lets hot callers resolving all four
+  // edges bail out with a single check on the common margin-free node.
+  bool hasMargin() const {
+    return marginEverSet_;
   }
 
   Style::Length position(Edge edge) const {
@@ -177,6 +191,18 @@ class YG_EXPORT Style {
   }
   void setPadding(Edge edge, Style::Length value) {
     pool_.store(padding_[yoga::to_underlying(edge)], value);
+    paddingEverSet_ = paddingEverSet_ ||
+        (!value.isUndefined() &&
+         !(value.isPoints() && value.value().unwrap() == 0.0f));
+    hasPercentageDims_ = hasPercentageDims_ || value.isPercent();
+  }
+  bool hasPadding() const {
+    return paddingEverSet_;
+  }
+  // True if any percentage value was ever stored (dimension, padding, margin,
+  // min/max). Sticky. O(1) check for subtreeCrossPure.
+  bool hasPercentageDims() const {
+    return hasPercentageDims_;
   }
 
   Style::Length border(Edge edge) const {
@@ -184,6 +210,12 @@ class YG_EXPORT Style {
   }
   void setBorder(Edge edge, Style::Length value) {
     pool_.store(border_[yoga::to_underlying(edge)], value);
+    borderEverSet_ = borderEverSet_ ||
+        (!value.isUndefined() &&
+         !(value.isPoints() && value.value().unwrap() == 0.0f));
+  }
+  bool hasBorder() const {
+    return borderEverSet_;
   }
 
   Style::Length gap(Gutter gutter) const {
@@ -198,6 +230,7 @@ class YG_EXPORT Style {
   }
   void setDimension(Dimension axis, Style::SizeLength value) {
     pool_.store(dimensions_[yoga::to_underlying(axis)], value);
+    hasPercentageDims_ = hasPercentageDims_ || value.isPercent();
   }
 
   Style::SizeLength minDimension(Dimension axis) const {
@@ -205,6 +238,7 @@ class YG_EXPORT Style {
   }
   void setMinDimension(Dimension axis, Style::SizeLength value) {
     pool_.store(minDimensions_[yoga::to_underlying(axis)], value);
+    hasPercentageDims_ = hasPercentageDims_ || value.isPercent();
   }
 
   // Grid Container Properties
@@ -316,6 +350,7 @@ class YG_EXPORT Style {
   }
   void setMaxDimension(Dimension axis, Style::SizeLength value) {
     pool_.store(maxDimensions_[yoga::to_underlying(axis)], value);
+    hasPercentageDims_ = hasPercentageDims_ || value.isPercent();
   }
 
   FloatOptional resolvedMaxDimension(
@@ -604,11 +639,22 @@ class YG_EXPORT Style {
   }
 
   float computeBorderForAxis(FlexDirection axis) const {
+    // Fast path: if no border was ever set, all borders are undefined and
+    // resolve to 0 — skip the per-edge compute + resolve. computeBorderForAxis
+    // is called per node during flex resolve.
+    if (!borderEverSet_) {
+      return 0.0f;
+    }
     return computeInlineStartBorder(axis, Direction::LTR) +
         computeInlineEndBorder(axis, Direction::LTR);
   }
 
   float computeMarginForAxis(FlexDirection axis, float widthSize) const {
+    // Fast path: if no margin was ever set, all margins resolve to 0 — skip the
+    // per-edge compute + resolve. Common case (most nodes set no margin).
+    if (!marginEverSet_) {
+      return 0.0f;
+    }
     // The total margin for a given axis does not depend on the direction
     // so hardcoding LTR here to avoid piping direction to this function
     return computeInlineStartMargin(axis, Direction::LTR, widthSize) +
@@ -848,6 +894,9 @@ class YG_EXPORT Style {
 
   StyleValueHandle computePadding(PhysicalEdge edge, Direction direction)
       const {
+    if (!paddingEverSet_) {
+      return {};
+    }
     switch (edge) {
       case PhysicalEdge::Left:
         return computeLeftEdge(padding_, direction);
@@ -912,6 +961,16 @@ class YG_EXPORT Style {
   Overflow overflow_ : bitCount<Overflow>() = Overflow::Visible;
   Display display_ : bitCount<Display>() = Display::Flex;
   BoxSizing boxSizing_ : bitCount<BoxSizing>() = BoxSizing::BorderBox;
+
+  // Sticky "a defined value was ever stored" flags for the edge groups (see
+  // hasMargin/hasPadding/hasBorder). Conservative: never auto-cleared, so false
+  // guarantees the whole group is undefined.
+  bool marginEverSet_ : 1 = false;
+  bool paddingEverSet_ : 1 = false;
+  bool borderEverSet_ : 1 = false;
+  // Sticky: true if ANY percentage value was ever stored (dimensions, padding,
+  // margin, min/max). Lets subtreeCrossPure check O(1) instead of 18 isPercent.
+  bool hasPercentageDims_ : 1 = false;
 
   StyleValueHandle flex_{};
   StyleValueHandle flexGrow_{};

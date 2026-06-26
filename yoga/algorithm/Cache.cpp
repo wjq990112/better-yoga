@@ -42,6 +42,102 @@ static inline bool newSizeIsStricterAndStillValid(
       (lastComputedSize <= size || yoga::inexactEquals(size, lastComputedSize));
 }
 
+CachedMeasurementRequest makeCachedMeasurementRequest(
+    const SizingMode widthMode,
+    const float availableWidth,
+    const SizingMode heightMode,
+    const float availableHeight,
+    const float marginRow,
+    const float marginColumn,
+    const yoga::Config* const config) {
+  const float pointScaleFactor = config->getPointScaleFactor();
+  const bool useRoundedComparison = config != nullptr && pointScaleFactor != 0;
+
+  return CachedMeasurementRequest{
+      .widthMode = widthMode,
+      .heightMode = heightMode,
+      .availableWidth = availableWidth,
+      .availableHeight = availableHeight,
+      .marginRow = marginRow,
+      .marginColumn = marginColumn,
+      .effectiveWidth = useRoundedComparison
+          ? roundValueToPixelGrid(availableWidth, pointScaleFactor, false, false)
+          : availableWidth,
+      .effectiveHeight = useRoundedComparison
+          ? roundValueToPixelGrid(
+                availableHeight, pointScaleFactor, false, false)
+          : availableHeight,
+      .pointScaleFactor = pointScaleFactor,
+      .useRoundedComparison = useRoundedComparison,
+  };
+}
+
+bool canUseCachedMeasurementForEntry(
+    const CachedMeasurementRequest& request,
+    const SizingMode lastWidthMode,
+    const float lastAvailableWidth,
+    const SizingMode lastHeightMode,
+    const float lastAvailableHeight,
+    const float lastComputedWidth,
+    const float lastComputedHeight) {
+  if ((yoga::isDefined(lastComputedHeight) && lastComputedHeight < 0) ||
+      ((yoga::isDefined(lastComputedWidth)) && lastComputedWidth < 0)) {
+    return false;
+  }
+
+  const float effectiveLastWidth = request.useRoundedComparison
+      ? roundValueToPixelGrid(
+            lastAvailableWidth, request.pointScaleFactor, false, false)
+      : lastAvailableWidth;
+  const float effectiveLastHeight = request.useRoundedComparison
+      ? roundValueToPixelGrid(
+            lastAvailableHeight, request.pointScaleFactor, false, false)
+      : lastAvailableHeight;
+
+  const bool hasSameWidthSpec = lastWidthMode == request.widthMode &&
+      yoga::inexactEquals(effectiveLastWidth, request.effectiveWidth);
+  const bool hasSameHeightSpec = lastHeightMode == request.heightMode &&
+      yoga::inexactEquals(effectiveLastHeight, request.effectiveHeight);
+
+  const bool widthIsCompatible =
+      hasSameWidthSpec ||
+      sizeIsExactAndMatchesOldMeasuredSize(
+          request.widthMode,
+          request.availableWidth - request.marginRow,
+          lastComputedWidth) ||
+      oldSizeIsMaxContentAndStillFits(
+          request.widthMode,
+          request.availableWidth - request.marginRow,
+          lastWidthMode,
+          lastComputedWidth) ||
+      newSizeIsStricterAndStillValid(
+          request.widthMode,
+          request.availableWidth - request.marginRow,
+          lastWidthMode,
+          lastAvailableWidth,
+          lastComputedWidth);
+
+  const bool heightIsCompatible = hasSameHeightSpec ||
+      sizeIsExactAndMatchesOldMeasuredSize(
+                                      request.heightMode,
+                                      request.availableHeight -
+                                          request.marginColumn,
+                                      lastComputedHeight) ||
+      oldSizeIsMaxContentAndStillFits(request.heightMode,
+                                      request.availableHeight -
+                                          request.marginColumn,
+                                      lastHeightMode,
+                                      lastComputedHeight) ||
+      newSizeIsStricterAndStillValid(request.heightMode,
+                                     request.availableHeight -
+                                         request.marginColumn,
+                                     lastHeightMode,
+                                     lastAvailableHeight,
+                                     lastComputedHeight);
+
+  return widthIsCompatible && heightIsCompatible;
+}
+
 bool canUseCachedMeasurement(
     const SizingMode widthMode,
     const float availableWidth,
@@ -56,66 +152,22 @@ bool canUseCachedMeasurement(
     const float marginRow,
     const float marginColumn,
     const yoga::Config* const config) {
-  if ((yoga::isDefined(lastComputedHeight) && lastComputedHeight < 0) ||
-      ((yoga::isDefined(lastComputedWidth)) && lastComputedWidth < 0)) {
-    return false;
-  }
-
-  const float pointScaleFactor = config->getPointScaleFactor();
-
-  bool useRoundedComparison = config != nullptr && pointScaleFactor != 0;
-  const float effectiveWidth = useRoundedComparison
-      ? roundValueToPixelGrid(availableWidth, pointScaleFactor, false, false)
-      : availableWidth;
-  const float effectiveHeight = useRoundedComparison
-      ? roundValueToPixelGrid(availableHeight, pointScaleFactor, false, false)
-      : availableHeight;
-  const float effectiveLastWidth = useRoundedComparison
-      ? roundValueToPixelGrid(
-            lastAvailableWidth, pointScaleFactor, false, false)
-      : lastAvailableWidth;
-  const float effectiveLastHeight = useRoundedComparison
-      ? roundValueToPixelGrid(
-            lastAvailableHeight, pointScaleFactor, false, false)
-      : lastAvailableHeight;
-
-  const bool hasSameWidthSpec = lastWidthMode == widthMode &&
-      yoga::inexactEquals(effectiveLastWidth, effectiveWidth);
-  const bool hasSameHeightSpec = lastHeightMode == heightMode &&
-      yoga::inexactEquals(effectiveLastHeight, effectiveHeight);
-
-  const bool widthIsCompatible =
-      hasSameWidthSpec ||
-      sizeIsExactAndMatchesOldMeasuredSize(
-          widthMode, availableWidth - marginRow, lastComputedWidth) ||
-      oldSizeIsMaxContentAndStillFits(
-          widthMode,
-          availableWidth - marginRow,
-          lastWidthMode,
-          lastComputedWidth) ||
-      newSizeIsStricterAndStillValid(
-          widthMode,
-          availableWidth - marginRow,
-          lastWidthMode,
-          lastAvailableWidth,
-          lastComputedWidth);
-
-  const bool heightIsCompatible = hasSameHeightSpec ||
-      sizeIsExactAndMatchesOldMeasuredSize(
-                                      heightMode,
-                                      availableHeight - marginColumn,
-                                      lastComputedHeight) ||
-      oldSizeIsMaxContentAndStillFits(heightMode,
-                                      availableHeight - marginColumn,
-                                      lastHeightMode,
-                                      lastComputedHeight) ||
-      newSizeIsStricterAndStillValid(heightMode,
-                                     availableHeight - marginColumn,
-                                     lastHeightMode,
-                                     lastAvailableHeight,
-                                     lastComputedHeight);
-
-  return widthIsCompatible && heightIsCompatible;
+  const CachedMeasurementRequest request = makeCachedMeasurementRequest(
+      widthMode,
+      availableWidth,
+      heightMode,
+      availableHeight,
+      marginRow,
+      marginColumn,
+      config);
+  return canUseCachedMeasurementForEntry(
+      request,
+      lastWidthMode,
+      lastAvailableWidth,
+      lastHeightMode,
+      lastAvailableHeight,
+      lastComputedWidth,
+      lastComputedHeight);
 }
 
 } // namespace facebook::yoga
