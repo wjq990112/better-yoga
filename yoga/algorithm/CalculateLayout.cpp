@@ -2573,6 +2573,7 @@ bool calculateLayoutInternal(
   if (needToVisitNode) {
     // Invalidate the cached results.
     layout->nextCachedMeasurementsIndex = 0;
+    layout->clearCachedMeasurementsOverflow();
     layout->cachedLayout.availableWidth = -1;
     layout->cachedLayout.availableHeight = -1;
     layout->cachedLayout.widthSizingMode = SizingMode::MaxContent;
@@ -2622,15 +2623,16 @@ bool calculateLayoutInternal(
     } else {
       // Try to use the measurement cache.
       for (size_t i = 0; i < layout->nextCachedMeasurementsIndex; i++) {
+        const auto& e = layout->cachedMeasurementRef(i);
         if (canUseCachedMeasurementForEntry(
                 cacheRequest,
-                layout->cachedMeasurements[i].widthSizingMode,
-                layout->cachedMeasurements[i].availableWidth,
-                layout->cachedMeasurements[i].heightSizingMode,
-                layout->cachedMeasurements[i].availableHeight,
-                layout->cachedMeasurements[i].computedWidth,
-                layout->cachedMeasurements[i].computedHeight)) {
-          cachedResults = &layout->cachedMeasurements[i];
+                e.widthSizingMode,
+                e.availableWidth,
+                e.heightSizingMode,
+                e.availableHeight,
+                e.computedWidth,
+                e.computedHeight)) {
+          cachedResults = &layout->cachedMeasurementRef(i);
           break;
         }
       }
@@ -2646,13 +2648,12 @@ bool calculateLayoutInternal(
     }
   } else {
     for (uint32_t i = 0; i < layout->nextCachedMeasurementsIndex; i++) {
-      if (yoga::inexactEquals(
-              layout->cachedMeasurements[i].availableWidth, availableWidth) &&
-          yoga::inexactEquals(
-              layout->cachedMeasurements[i].availableHeight, availableHeight) &&
-          layout->cachedMeasurements[i].widthSizingMode == widthSizingMode &&
-          layout->cachedMeasurements[i].heightSizingMode == heightSizingMode) {
-        cachedResults = &layout->cachedMeasurements[i];
+      const auto& e = layout->cachedMeasurementRef(i);
+      if (yoga::inexactEquals(e.availableWidth, availableWidth) &&
+          yoga::inexactEquals(e.availableHeight, availableHeight) &&
+          e.widthSizingMode == widthSizingMode &&
+          e.heightSizingMode == heightSizingMode) {
+        cachedResults = &layout->cachedMeasurementRef(i);
         break;
       }
     }
@@ -2690,19 +2691,17 @@ bool calculateLayoutInternal(
           layoutMarkerData.maxMeasureCache,
           layout->nextCachedMeasurementsIndex + 1u);
 
-      if (layout->nextCachedMeasurementsIndex ==
-          LayoutResults::MaxCachedMeasurements) {
-        layout->nextCachedMeasurementsIndex = 0;
-      }
-
+      // No wrap/eviction: grow into overflow (heap) when the inline 8 slots
+      // are full. This avoids cache misses from eviction that re-measure
+      // subtrees exponentially in deep auto-size trees.
       CachedMeasurement* newCacheEntry = nullptr;
       if (performLayout) {
         // Use the single layout cache entry.
         newCacheEntry = &layout->cachedLayout;
       } else {
-        // Allocate a new measurement cache entry.
+        // Allocate a new measurement cache entry (inline or overflow).
         newCacheEntry =
-            &layout->cachedMeasurements[layout->nextCachedMeasurementsIndex];
+            &layout->cachedMeasurementSlot(layout->nextCachedMeasurementsIndex);
         layout->nextCachedMeasurementsIndex++;
       }
 
