@@ -147,6 +147,23 @@ YGNodeRef buildWrap(YGConfigRef config, int items) {
   return root;
 }
 
+// Wide shallow tree (Taffy's "Wide tree" shape): a root with many children,
+// each a leaf with fixed size. This is the workload cache=64 was suspected of
+// regressing (memory pressure). Used to verify whether the regression is real.
+YGNodeRef buildWide(YGConfigRef config, int items) {
+  YGNodeRef root = YGNodeNewWithConfig(config);
+  YGNodeStyleSetFlexDirection(root, YGFlexDirectionRow);
+  YGNodeStyleSetFlexWrap(root, YGWrapWrap);
+  for (int i = 0; i < items; i++) {
+    YGNodeRef item = YGNodeNewWithConfig(config);
+    YGNodeStyleSetWidth(item, 80.0f);
+    YGNodeStyleSetHeight(item, 40.0f);
+    YGNodeStyleSetMargin(item, YGEdgeAll, 2.0f);
+    YGNodeInsertChild(root, item, (size_t)i);
+  }
+  return root;
+}
+
 // Percentage-sized nested containers with min/max constraints.
 YGNodeRef buildPercentMinMax(YGConfigRef config, int depth) {
   YGNodeRef node = YGNodeNewWithConfig(config);
@@ -291,6 +308,11 @@ std::vector<Workload> buildWorkloads() {
     // (undefined available dims) + deep flexGrow chain.
     YGConfigRef c = makeConfig();
     add("super-deep-50", buildSuperDeep(c, 50, 3), YGUndefined, YGUndefined, YGDirectionLTR);
+  }
+  {
+    // Wide shallow tree: the workload cache=64 was suspected of regressing.
+    YGConfigRef c = makeConfig();
+    add("wide-2000", buildWide(c, 2000), 1024, YGUndefined, YGDirectionLTR);
   }
 
   return workloads;
