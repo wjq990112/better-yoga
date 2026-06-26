@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "yarn workspace yoga-layout build && docusaurus start",
-    "build": "yarn workspace yoga-layout build && docusaurus build",
+    "start": "yarn workspace better-yoga-layout build && docusaurus start",
+    "build": "yarn workspace better-yoga-layout build && docusaurus build",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "clear": "docusaurus clear",
@@ -27,7 +27,7 @@
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-live": "^4.1.5",
-    "yoga-layout": "0.0.0"
+    "better-yoga-layout": "0.1.0"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "3.6.0",

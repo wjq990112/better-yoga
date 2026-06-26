@@ -5,8 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import Yoga from 'yoga-layout';
-import {Direction, FlexDirection, Wrap} from 'yoga-layout';
+import Yoga from 'better-yoga-layout';
+import {Direction, FlexDirection, Wrap} from 'better-yoga-layout';
 
 test('children_overflow_no_wrap_and_no_flex_children', () => {
   const root = Yoga.Node.create();
