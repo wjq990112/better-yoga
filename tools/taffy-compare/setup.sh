@@ -46,7 +46,17 @@ patch -d "$YOGA_RS" -p1 < "$DIR/patches/01-build-lto.patch"
 patch -d "$YOGA_RS" -p1 < "$DIR/patches/02-gap-getter-ygvalue.patch"
 patch -d "$YOGA_RS" -p1 < "$DIR/patches/03-yunit-keywords.patch"
 
-# Point Taffy's benches at the local patched yoga crate.
+# Also prepare an UPSTREAM yoga crate for the three-way comparison
+# (run-three-way.sh): keep the crates.io vendored C++ (no better-yoga changes),
+# apply only the LTO build patch so upstream-vs-better-yoga isolates *algorithm*
+# from *build*. Upstream C++ matches yoga-rs's original FFI, so no 02/03 patches.
+YOGA_RS_ORIGINAL="$WORKSPACE/yoga-rs-original"
+rm -rf "$YOGA_RS_ORIGINAL"
+cp -R "$SRC" "$YOGA_RS_ORIGINAL"
+patch -d "$YOGA_RS_ORIGINAL" -p1 < "$DIR/patches/01-build-lto.patch"
+
+# Point Taffy's benches at the local patched (better-yoga) yoga crate by default.
+# run-three-way.sh rewrites this line to alternate between original and patched.
 BENCH_CARGO="$TAFFY/benches/Cargo.toml"
 grep -q '^\[patch.crates-io\]' "$BENCH_CARGO" || cat >> "$BENCH_CARGO" <<EOF
 
@@ -56,5 +66,11 @@ yoga = { path = "$YOGA_RS" }
 EOF
 
 echo
-echo "Harness ready. Run:"
+echo "Harness ready. Two yoga crates prepared:"
+echo "  $YOGA_RS_ORIGINAL  (upstream Yoga, LTO only)"
+echo "  $YOGA_RS           (better-yoga, LTO + fast-paths + dynamic cache)"
+echo
+echo "Three-way (upstream vs better-yoga vs Taffy):"
+echo "  tools/taffy-compare/run-three-way.sh"
+echo "Two-way (better-yoga vs Taffy only):"
 echo "  cd $TAFFY/benches && cargo bench --features 'yoga yoga-super-deep small large' --bench flexbox -- --quick --noplot"
