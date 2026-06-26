@@ -1,14 +1,22 @@
 {
-  "name": "yoga-layout",
+  "name": "better-yoga-layout",
   "version": "0.0.0",
-  "description": "An embeddable and performant flexbox layout engine with bindings for multiple languages",
+  "description": "A performance-refactored fork of Yoga: an embeddable, performant flexbox layout engine with WASM bindings. Drop-in replacement for yoga-layout, faster on real-world UI trees.",
   "license": "MIT",
-  "author": "Meta Open Source",
-  "homepage": "https://yogalayout.dev/",
+  "author": "Jack Wang",
+  "homepage": "https://github.com/wjq990112/better-yoga",
   "repository": {
     "type": "git",
-    "url": "git@github.com:facebook/yoga.git"
+    "url": "git+https://github.com/wjq990112/better-yoga.git"
   },
+  "keywords": [
+    "yoga",
+    "flexbox",
+    "layout",
+    "wasm",
+    "css",
+    "performance"
+  ],
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

@@ -26,9 +26,8 @@ bool LayoutResults::operator==(LayoutResults layout) const {
       cachedLayout == layout.cachedLayout &&
       computedFlexBasis == layout.computedFlexBasis;
 
-  for (uint32_t i = 0; i < LayoutResults::MaxCachedMeasurements && isEqual;
-       ++i) {
-    isEqual = isEqual && cachedMeasurements[i] == layout.cachedMeasurements[i];
+  for (uint32_t i = 0; i < nextCachedMeasurementsIndex && isEqual; ++i) {
+    isEqual = isEqual && cachedMeasurementRef(i) == layout.cachedMeasurementRef(i);
   }
 
   if (!yoga::isUndefined(measuredDimensions_[0]) ||

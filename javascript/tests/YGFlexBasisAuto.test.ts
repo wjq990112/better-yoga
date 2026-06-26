@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import Yoga from 'yoga-layout';
+import Yoga from 'better-yoga-layout';
 
 test('flex_basis_auto', () => {
   const root = Yoga.Node.create();

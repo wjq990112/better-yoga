@@ -13,7 +13,7 @@
     "moduleResolution": "nodenext",
     "allowImportingTsExtensions": true,
     "paths": {
-      "yoga-layout": ["src"]
+      "better-yoga-layout": ["src"]
     }
   },
   "include": [

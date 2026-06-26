@@ -1,0 +1,15 @@
+--- a/src/ffi_types/style_unit.rs	2006-07-24 09:21:28
++++ b/src/ffi_types/style_unit.rs	2026-06-26 11:39:08
+@@ -28,6 +28,12 @@
+             internal::YGUnit::Point => StyleUnit::Point(OrderedFloat(v.value)),
+             internal::YGUnit::Percent => StyleUnit::Percent(OrderedFloat(v.value)),
+             internal::YGUnit::Auto => StyleUnit::Auto,
++            // better-yoga adds CSS sizing keywords (MaxContent/FitContent/Stretch)
++            // to YGUnit. yoga-rs 0.5.0's StyleUnit has no keyword variant, so map
++            // them to UndefinedValue (the benches don't read keyword gaps).
++            internal::YGUnit::MaxContent
++            | internal::YGUnit::FitContent
++            | internal::YGUnit::Stretch => StyleUnit::UndefinedValue,
+         }
+     }
+ }
