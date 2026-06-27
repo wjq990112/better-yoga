@@ -11,4 +11,11 @@ export default {
   setupFiles: ['./jest.setup.js'],
   testRegex: '/tests/.*\\.test\\.ts$',
   extensionsToTreatAsEsm: ['.ts'],
+  // Tests import the package by its upstream name 'yoga-layout' so test sources
+  // stay byte-identical to upstream (avoids merge conflicts on every gentest
+  // regeneration). Resolve it to local sources here; the published package name
+  // remains 'better-yoga-layout'.
+  moduleNameMapper: {
+    '^yoga-layout$': '<rootDir>/src/index.ts',
+  },
 };

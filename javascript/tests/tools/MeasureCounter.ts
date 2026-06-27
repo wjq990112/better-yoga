@@ -7,8 +7,8 @@
  * @format
  */
 
-import type {MeasureFunction} from 'better-yoga-layout';
-import Yoga from 'better-yoga-layout';
+import type {MeasureFunction} from 'yoga-layout';
+import Yoga from 'yoga-layout';
 
 export type MeasureCounter = {
   inc: MeasureFunction;

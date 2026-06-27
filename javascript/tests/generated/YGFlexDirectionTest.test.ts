@@ -9,7 +9,7 @@
  */
 
 import { intrinsicSizeMeasureFunc } from '../tools/utils.ts'
-import Yoga from 'better-yoga-layout';
+import Yoga from 'yoga-layout';
 import {
   Align,
   BoxSizing,
@@ -26,7 +26,7 @@ import {
   PositionType,
   Unit,
   Wrap,
-} from 'better-yoga-layout';
+} from 'yoga-layout';
 
 test('flex_direction_column_no_height', () => {
   const config = Yoga.Config.create();

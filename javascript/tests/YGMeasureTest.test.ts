@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import Yoga from 'better-yoga-layout';
+import Yoga from 'yoga-layout';
 import {getMeasureCounter} from './tools/MeasureCounter.ts';
 
 test('dont_measure_single_grow_shrink_child', () => {
