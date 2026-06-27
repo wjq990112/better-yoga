@@ -9,6 +9,10 @@
     "type": "git",
     "url": "git+https://github.com/wjq990112/better-yoga.git"
   },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
   "keywords": [
     "yoga",
     "flexbox",

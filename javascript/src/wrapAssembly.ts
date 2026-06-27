@@ -59,6 +59,7 @@ export type Config = {
   setErrata(errata: Errata): void;
   useWebDefaults(): boolean;
   setUseWebDefaults(useWebDefaults: boolean): void;
+  free(): void;
 };
 
 export type DirtiedFunction = (node: Node) => void;
@@ -125,6 +126,8 @@ export type Node = {
   markLayoutSeen(): void;
   removeChild(child: Node): void;
   reset(): void;
+  free(): void;
+  freeRecursive(): void;
   setAlignContent(alignContent: Align): void;
   setAlignItems(alignItems: Align): void;
   setAlignSelf(alignSelf: Align): void;
@@ -267,6 +270,7 @@ export type Yoga = {
     create(config?: Config): Node;
     createDefault(): Node;
     createWithConfig(config: Config): Node;
+    destroy(node: Node): void;
   };
 } & typeof YGEnums;
 
@@ -416,6 +420,17 @@ export default function wrapAssembly(lib: any): Yoga {
     setUseWebDefaults(useWebDefaults: boolean): void {
       lib._YGConfigSetUseWebDefaults(this._ptr, useWebDefaults ? 1 : 0);
     }
+
+    free(): void {
+      // Idempotent manual free, mirroring Node.free (a Config has no tree to
+      // recurse into). Cancel the GC finalizer so it isn't freed twice.
+      if (this._ptr === 0) {
+        return;
+      }
+      configRegistry.unregister(this);
+      lib._YGConfigFree(this._ptr);
+      this._ptr = 0;
+    }
   }
 
   // --- Node class ---
@@ -466,6 +481,52 @@ export default function wrapAssembly(lib: any): Yoga {
       this._children = [];
       this._parent = null;
       lib._YGNodeReset(this._ptr);
+    }
+
+    free(): void {
+      // Idempotent: a node may be freed at most once. Guard against
+      // double-free (e.g. free() then freeRecursive() over the same subtree).
+      if (this._ptr === 0) {
+        return;
+      }
+      // Manual free: cancel the GC finalizer so the node is never finalized
+      // twice — once here, and again by nodeRegistry after this wrapper is
+      // garbage-collected.
+      nodeRegistry.unregister(this);
+      lib._yogaMeasureFuncs.delete(this._ptr);
+      lib._yogaDirtiedFuncs.delete(this._ptr);
+      // Mirror native YGNodeFree on the JS-side tree: detach from the owner
+      // and clear children's parent pointers (native clears their owner).
+      if (this._parent) {
+        const siblings = this._parent._children;
+        const idx = siblings.indexOf(this);
+        if (idx !== -1) {
+          siblings.splice(idx, 1);
+        }
+        this._parent = null;
+      }
+      for (const child of this._children) {
+        child._parent = null;
+      }
+      this._children = [];
+      // Native YGNodeFree removes the node from its owner and clears its
+      // children's owner pointers before releasing it.
+      lib._YGNodeFree(this._ptr);
+      this._ptr = 0;
+    }
+
+    freeRecursive(): void {
+      if (this._ptr === 0) {
+        return;
+      }
+      // Free descendants depth-first so each wrapper's finalizer is
+      // unregistered. We can't delegate to native YGNodeFreeRecursive: it
+      // would release the descendant pointers while leaving their JS wrappers
+      // registered, and those finalizers would then double-free after GC.
+      while (this._children.length > 0) {
+        this._children[this._children.length - 1].freeRecursive();
+      }
+      this.free();
     }
 
     // --- Style setters ---
@@ -1018,6 +1079,11 @@ export default function wrapAssembly(lib: any): Yoga {
         return new NodeImpl(
           lib._YGNodeNewWithConfig((config as ConfigImpl)._ptr),
         );
+      },
+      destroy(node: Node): void {
+        // 3.2.x compat: embind exposed a static Yoga.Node.destroy(node).
+        // Delegate to the node's own free().
+        (node as NodeImpl).free();
       },
     },
     ...YGEnums,
