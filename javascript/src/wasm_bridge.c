@@ -134,6 +134,26 @@ EMSCRIPTEN_KEEPALIVE void jswrap_YGNodeUnsetMeasureFunc(YGNodeRef node) {
   YGNodeSetMeasureFunc(node, NULL);
 }
 
+// Drop the cached measurement (see callMeasureFunc) for a node. Must live in
+// the same EM_JS compilation unit as callMeasureFunc so closure renames the
+// `_cachedResult` property identically in both — a clear written in
+// wrapAssembly.ts (compiled by Babel, not closure) would target the unmangled
+// name and silently miss.
+EM_JS(void, invalidateMeasureCache, (YGNodeConstRef nodePtr), {
+  var fn = Module["_yogaMeasureFuncs"].get(nodePtr);
+  if (fn)
+    fn._cachedResult = undefined;
+});
+
+// markDirty means the node's content changed, so the cached measurement is
+// stale even though its measure spec (width/height + modes) is unchanged. The
+// JS measure cache keys only on that spec, so without dropping it here the next
+// layout returns the stale result and never re-invokes the user measure func.
+EMSCRIPTEN_KEEPALIVE void jswrap_YGNodeMarkDirty(YGNodeRef node) {
+  invalidateMeasureCache(node);
+  YGNodeMarkDirty(node);
+}
+
 // --- Dirtied callback bridge ---
 
 EM_JS(void, callDirtiedFunc, (YGNodeConstRef nodePtr), {

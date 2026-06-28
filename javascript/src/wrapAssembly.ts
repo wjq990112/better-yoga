@@ -980,7 +980,14 @@ export default function wrapAssembly(lib: any): Yoga {
 
     // --- Dirty / Layout ---
     markDirty(): void {
-      lib._YGNodeMarkDirty(this._ptr);
+      // Route through the C bridge wrapper, which drops the cached measurement
+      // (see wasm_bridge.c) before dirtying. The measure cache keys only on the
+      // measure spec (width/height + modes), so a same-spec re-layout after a
+      // content change would otherwise return the stale result and never
+      // re-invoke the user measure func. The clear must happen C-side: closure
+      // renames the cache property in the compiled glue, so a clear written
+      // here (Babel, un-renamed) would miss it.
+      lib._jswrap_YGNodeMarkDirty(this._ptr);
     }
 
     isDirty(): boolean {
