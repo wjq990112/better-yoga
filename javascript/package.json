@@ -1,6 +1,6 @@
 {
   "name": "better-yoga-layout",
-  "version": "0.0.0",
+  "version": "0.2.2",
   "description": "A performance-refactored fork of Yoga: an embeddable, performant flexbox layout engine with WASM bindings. Drop-in replacement for yoga-layout, faster on real-world UI trees.",
   "license": "MIT",
   "author": "Jack Wang",
