@@ -13,7 +13,7 @@ import Yoga, {
   Display,
   Overflow,
   Node as YogaNode,
-} from 'yoga-layout';
+} from 'better-yoga-layout';
 import {FlexStyle, applyStyle} from './FlexStyle';
 import LayoutBox from './LayoutBox';
 

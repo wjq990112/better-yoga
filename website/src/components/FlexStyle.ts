@@ -20,7 +20,7 @@ import {
   PositionType,
   Wrap,
   Node as YogaNode,
-} from 'yoga-layout';
+} from 'better-yoga-layout';
 
 export type AlignContent =
   | 'flex-start'
