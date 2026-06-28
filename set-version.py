@@ -30,7 +30,9 @@ with open("javascript/package.json", "r+") as f:
 
 with open("website/package.json", "r+") as f:
     new_contents = re.sub(
-        r'"yoga-layout": ".*"', f'"yoga-layout": "{version}"', f.read()
+        r'"better-yoga-layout": ".*"',
+        f'"better-yoga-layout": "{version}"',
+        f.read(),
     )
     f.seek(0)
     f.truncate()
